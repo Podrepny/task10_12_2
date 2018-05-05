@@ -6,13 +6,13 @@ cd ${SCRIPT_DIR}
 source config
 source function.inc
 
-apt-get -y install curl
+apt-get update
+apt-get -y install apt-transport-https ca-certificates curl software-properties-common
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 apt-get update
-apt-get -y install docker-ce docker-compose
-apt-get -y install vlan ssh openssh-server openssl
-modprobe 8021q
+apt-get -y install docker-ce docker-compose bridge-utils
+apt-get -y install ssh openssh-server openssl
 
 ## generate nginx config
 func_nginx_cfg
@@ -35,6 +35,12 @@ cat $SSL_PATH/web.crt $SSL_PATH/root-ca.crt > $SSL_PATH/web.pem
 
 
 ## deploy docker conteiner apache2 nginx
+
+docker pull nginx:1.13
+docker pull httpd:2.4
+
+
+
 volume
 
 $NGINX_LOG_DIR
