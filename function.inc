@@ -1,24 +1,29 @@
-function func_nginx_cfg {
-  cat <<EOF > /etc/nginx/sites-available/$HOST_NAME
-server {
-    listen $EXT_IP_ADDR:$NGINX_PORT;
-    server_name vm1;
-    ssl_certificate           $SSL_PATH/web.pem;
-    ssl_certificate_key       $SSL_PATH/web.key;
-    ssl on;
-    ssl_session_cache  builtin:1000  shared:SSL:10m;
-    ssl_protocols  TLSv1 TLSv1.1 TLSv1.2;
-    ssl_ciphers HIGH:!aNULL:!eNULL:!EXPORT:!CAMELLIA:!DES:!MD5:!PSK:!RC4;
-    ssl_prefer_server_ciphers on;
-    access_log            /var/log/nginx/vm1.access.log;
-    location / {
-      proxy_set_header        Host \$host;
-      proxy_set_header        X-Real-IP \$remote_addr;
-      proxy_set_header        X-Forwarded-For \$proxy_add_x_forwarded_for;
-      proxy_set_header        X-Forwarded-Proto \$scheme;
-      # Fix the "It appears that your reverse proxy set up is broken" error.
-      proxy_pass          http://$APACHE_VLAN_IP:80;
-    }
+function func_ssl_gen {
+## generate root CA key
+openssl genrsa -out $SSL_DIR/root-ca.key 4096
+## generate root CA certivicate
+openssl req -x509 -new -nodes -key $SSL_DIR/root-ca.key -sha256 -days 365 -out $SSL_DIR/root-ca.crt -subj "/C=UA/ST=Kharkov/L=Kharkov/O=Podrepny/OU=web/CN=root_cert/"
+## generate nginx key
+openssl genrsa -out $SSL_DIR/web.key 2048
+## generate nginx certificate signing request
+openssl req -new -out $SSL_DIR/web.csr -key $SSL_DIR/web.key -subj "/C=UA/ST=Kharkov/L=Kharkov/O=Podrepny/OU=web/CN=$HOST_NAME/"
+## signing a nginx CSR with a root certificate
+openssl x509 -req -in $SSL_DIR/web.csr -CA $SSL_DIR/root-ca.crt -CAkey $SSL_DIR/root-ca.key -CAcreateserial -out $SSL_DIR/web.crt -days 365 -sha256 -extfile <(echo -e "authorityKeyIdentifier=keyid,issuer\nbasicConstraints=CA:FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment\nsubjectAltName = @alt_names\n[ alt_names ]\nDNS.1 = $HOST_NAME\nIP.1 = $EXTERNAL_IP")
+## combining two certificates (nginx and root CA) to web.pem
+cat $SSL_DIR/web.crt $SSL_DIR/root-ca.crt > $SSL_DIR/web.pem
 }
-  EOF
+
+function func_dir_tree_gen {
+if [ ! -d "${SSL_DIR}" ]; then
+  mkdir -p "${SSL_DIR}"
+fi
+
+if [ ! -e "${NGINX_CFG_FILE}" ]; then
+  mkdir -p "${NGINX_CFG_DIR}"
+fi
+touch "${NGINX_CFG_FILE}"
+
+if [ ! -d ${NGINX_LOG_DIR} ]; then
+  mkdir -p ${NGINX_LOG_DIR}
+fi
 }

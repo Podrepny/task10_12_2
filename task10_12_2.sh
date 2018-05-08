@@ -2,10 +2,27 @@
 
 SCRIPT_DIR=`dirname $0`
 cd ${SCRIPT_DIR}
+WRK_DIR_PATH=$(pwd)
 
 source config
 source function.inc
 
+SSL_DIR="$WRK_DIR_PATH/certs"
+SSL_DIR_DOCKER="/etc/nginx/certs"
+NGINX_CFG_DIR="$WRK_DIR_PATH/etc"
+NGINX_CFG_FILE="$WRK_DIR_PATH/etc/nginx.conf"
+NGINX_CFG_FILE_DOCKER="/etc/nginx/nginx.conf"
+NGINX_CFG_TEMPLATE_FILE="$WRK_DIR_PATH/template/nginx.conf.template"
+NGINX_LOG_DIR_DOCKER=/var/log/nginx
+DOCKER_SRV_APACHE_NAME="web"
+DOCKER_SRV_APACHE_PORT="80"
+DOCKER_SRV_NGINX_NAME="proxy"
+DOCKER_SRV_NGINX_PORT="443"
+DOCKER_SRV_NGINX_LOG_DIR="/var/log/nginx"
+DOCKER_YML_FILE="$WRK_DIR_PATH/docker-compose.yml"
+DOCKER_YML_TEMPLATE_FILE="$WRK_DIR_PATH/template/docker-compose.yml.template"
+
+## install components
 apt-get update
 apt-get -y install apt-transport-https ca-certificates curl software-properties-common
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -14,33 +31,20 @@ apt-get update
 apt-get -y install docker-ce docker-compose bridge-utils
 apt-get -y install ssh openssh-server openssl
 
+# create dir tree and files
+func_dir_tree_gen
+
+## generate ssl CA and web
+func_ssl_gen
+
 ## generate nginx config
-func_nginx_cfg
+eval "echo \"$(cat ${NGINX_CFG_TEMPLATE_FILE})\"" > ${NGINX_CFG_FILE}
+#command: /bin/bash -c "envsubst < /etc/nginx/conf.d/mysite.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
 
-mkdir -p $SSL_PATH
+## generate docker-compose.yml from template
+eval "echo \"$(cat ${DOCKER_YML_TEMPLATE_FILE})\"" > ${DOCKER_YML_FILE}
 
-## ssl
-## generate root CA key
-openssl genrsa -out $SSL_PATH/root-ca.key 4096
-## generate root CA certivicate
-openssl req -x509 -new -nodes -key $SSL_PATH/root-ca.key -sha256 -days 365 -out $SSL_PATH/root-ca.crt -subj "/C=UA/ST=Kharkov/L=Kharkov/O=Podrepny/OU=web/CN=root_cert/"
-## generate nginx key
-openssl genrsa -out $SSL_PATH/web.key 2048
-## generate nginx certificate signing request
-openssl req -new -out $SSL_PATH/web.csr -key $SSL_PATH/web.key -subj "/C=UA/ST=Kharkov/L=Kharkov/O=Podrepny/OU=web/CN=$HOST_NAME/"
-## signing a nginx CSR with a root certificate
-openssl x509 -req -in $SSL_PATH/web.csr -CA $SSL_PATH/root-ca.crt -CAkey $SSL_PATH/root-ca.key -CAcreateserial -out $SSL_PATH/web.crt -days 365 -sha256 -extfile <(echo -e "authorityKeyIdentifier=keyid,issuer\nbasicConstraints=CA:FALSE\nkeyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment\nsubjectAltName = @alt_names\n[ alt_names ]\nDNS.1 = $HOST_NAME\nDNS.2 = $EXT_IP_ADDR\nIP.1 = $EXT_IP_ADDR")
-## combining two certificates (nginx and root CA) to web.pem
-cat $SSL_PATH/web.crt $SSL_PATH/root-ca.crt > $SSL_PATH/web.pem
+## run docker-compose
+docker-compose up -d
 
-
-## deploy docker conteiner apache2 nginx
-
-docker pull nginx:1.13
-docker pull httpd:2.4
-
-
-
-volume
-
-$NGINX_LOG_DIR
+exit 0
