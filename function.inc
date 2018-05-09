@@ -23,7 +23,7 @@ if [ ! -e "${NGINX_CFG_FILE}" ]; then
 fi
 touch "${NGINX_CFG_FILE}"
 
-if [ ! -d ${NGINX_LOG_DIR} ]; then
-  mkdir -p ${NGINX_LOG_DIR}
+if [ ! -d "${NGINX_LOG_DIR}" ]; then
+  mkdir -p "${NGINX_LOG_DIR}"
 fi
 }
